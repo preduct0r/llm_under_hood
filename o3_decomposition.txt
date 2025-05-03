@@ -1,0 +1,156 @@
+Below is the thinking-plan I’d follow before writing a single line of code.  
+It’s based on what has kept real-world parsers running safely in production long after the original author moved on.
+
+---
+
+## 1. First questions to settle
+
+| Question | Why it matters | My decision |
+|----------|---------------|-------------|
+| **Exact contract of “parse”** | Determines error-handling and performance constraints. | _Pure function_ → `str → Block`, never crashes, returns an error object on failure. |
+| **Streaming vs. load-all-at-once** | Large docs, back-pressure, memory. | Stream **line-by-line**; materialise sub-trees lazily, but we don’t need true streaming JSON output. |
+| **Strictness level** | How forgiving the parser is. | Fail fast on *structural* errors (unbalanced tags, bad list prefix), ignore superficial issues (extra blank lines). |
+| **Extensibility** | Future tags, new list kinds. | Table-driven tag registry + strategy pattern so new constructs plug in without touching the core automaton. |
+
+---
+
+## 2. High-level architecture
+
+```
+               +------------------+
+input text --> |  Line Scanner    |  yields Token(stream)
+               +------------------+
+                            |
+                            v
+                  +------------------+
+                  |  Parser (LL)     |  builds AST
+                  +------------------+
+                            |
+                            v
+                +----------------------+
+                |  Validator/Normalizer|  enforces spec,
+                |  fixes trivial issues|
+                +----------------------+
+                            |
+                            v
+                  +------------------+
+                  |  JSON Encoder    |
+                  +------------------+
+```
+
+### Why a two-phase **scan + parse**?
+
+* Keeps the grammar understandable.  
+* Errors surface with accurate line/col.  
+* The spec’s constructs (`<block>`, `<dict>`, `<list kind=".">`) are already token-like tags.
+
+---
+
+## 3. Token design
+
+| Token | Example | Payload |
+|-------|---------|---------|
+| `TagOpen` | `<dict sep=":">` | name=`dict`, attrs |
+| `TagClose` | `</dict>` | name |
+| `Line` | `First paragraph.` | raw text |
+| `Blank` |  |  |
+
+Scanner = regex on per-line basis → O(N) and trivial to debug.
+
+---
+
+## 4. Parser strategy
+
+* **Recursive-descent** (hand-written), not a generator framework.  
+  * Grammar is simple, recursion depth low, hand code is clearer and faster to optimise than a generic PEG for this case.
+* Maintain a **stack** of container nodes (`Block`, `ListBlock`, `Dictionary`) mirroring the tag nesting.
+* List parsing:
+  * Detect prefix (`1.`, `2.1.`, `•`, `o`) with regex.
+  * When prefix changes, decide whether it is:  
+    1. **same level** → new sibling,  
+    2. **child** → push new list onto stack,  
+    3. **higher level** → pop until it matches.
+* Dictionary parsing:
+  * Separator supplied by attribute; default `:`.
+  * Split once on first occurrence to keep values intact.
+* Text outside any explicit tag always belongs to the body of *current* block.
+
+---
+
+## 5. Data model & validation
+
+* Use the **exact Pydantic schemas** from the spec.  
+  * Gains runtime type checks + JSON serialization “for free”.  
+  * Declarative constraints (e.g., `kind="block"`) catch errors early.
+* After AST is built, run a **validator pass**:
+  * Ensure list items are homogeneous.
+  * Ensure no unexpected tokens remain.
+  * Collapse consecutive strings into single string if desired.
+
+---
+
+## 6. Error handling philosophy
+
+* Parser never throws; collects `ParseError` objects with:  
+  * severity (`fatal`, `warning`)  
+  * message  
+  * line/col span
+* On the first fatal error → abort building AST, return partial tree + errors.
+
+This keeps the consumer (e.g., an AI pipeline) from crashing yet surfaces useful diagnostics.
+
+---
+
+## 7. Testing strategy
+
+1. **Golden tests** – the spec already provides a perfect suite; round-trip each example.
+2. **Property-based tests** with Hypothesis:  
+   * Randomly delete/duplicate tags, ensure we fail gracefully.  
+   * Generate arbitrary key/value pairs to hammer dictionaries.
+3. **Fuzzers** for large random documents to find stack overflows or exponential blow-ups.
+4. Performance benchmarks:  
+   * 10 MB file should parse < 200 ms on commodity laptop.  
+   * Memory peak < 2× file size.
+
+---
+
+## 8. Performance & robustness tricks
+
+| Issue | Mitigation |
+|-------|------------|
+| Deep recursion risk | Iterative stack, tail recursion elimination. |
+| Large dict or list | Pre-allocate lists using `.reserve()` semantics (if language allows). |
+| Regex backtracking | Compile once, use anchored patterns, avoid `.*?` where not needed. |
+| I/O bottlenecks | Buffered reader; streaming decoder for UTF-8. |
+
+---
+
+## 9. Deployment & maintenance
+
+* Package core as a **pure library** (no CLI/runtime deps) plus a thin CLI wrapper.
+* Expose **`parse(text) -> (Block, List[ParseError])`**; anything else is convenience.
+* Semantic versioning; failing examples added to test corpus before every release.
+* Provide a **small playground** (Web/Python notebook) so non-engineers can paste text and see JSON—reduces support tickets.
+* Logging behind a feature flag to avoid perf hit in production.
+
+---
+
+## 10. Future-proofing & nice-to-haves
+
+1. **Incremental parsing** – if documents come from an editor, re-parse only changed chunks.  
+2. **Schema evolution** – keep tag registry string-based; unknown tags become `UnknownBlock` but keep payload so older parsers degrade gracefully.  
+3. **Bidirectional conversion** – pretty-print JSON back to text, useful for diffing.  
+4. **Pluggable renderers** – HTML, Markdown, etc., built atop the same AST.
+
+---
+
+### The takeaway
+
+*Keep the algorithm simple, the layers thin, and the contracts explicit.*  
+A deterministic hand-written recursive-descent parser with a modest scanner gets us:
+
+* **Speed** – linear time, small constants.  
+* **Reliability** – no hidden magic, straightforward to debug.  
+* **Maintainability** – new syntactic features are usually one extra case in the token stream or one new node type, nothing more.
+
+That combination is what has kept the parsers I wrote a decade ago still running happily in production today.
