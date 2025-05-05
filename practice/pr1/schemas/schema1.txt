@@ -1,0 +1,80 @@
+ cd /home/den/projects/llm_under_hood ; /usr/bin/env /home/den/anaconda3/envs/llm_course/bin/python /home/den/.cursor/extensions/ms-python.debugpy-2024.6.0-linux-x64/bundled/libs/debugpy/adapter/../../debugpy/launcher 60911 -- /home/den/projects/llm_under_hood/practice/get_schema.py --db_path practice/pr1/database/org_structure_db1.sqlite 
+## Method 1: Using sqlite_schema ##
+
+### Indexs:
+-- Schema for index 'idx_dependencies_from_system' --
+CREATE INDEX idx_dependencies_from_system ON Dependencies(from_system_id)
+-- Schema for index 'idx_dependencies_to_system' --
+CREATE INDEX idx_dependencies_to_system ON Dependencies(to_system_id)
+-- Schema for index 'idx_employees_department' --
+CREATE INDEX idx_employees_department ON Employees(department_id)
+-- Schema for index 'idx_employees_manager' --
+CREATE INDEX idx_employees_manager ON Employees(manager_id)
+
+### Tables:
+-- Schema for table 'BoundedContexts' --
+CREATE TABLE BoundedContexts (
+    id TEXT PRIMARY KEY,
+    domain_id TEXT,
+    description TEXT,
+    FOREIGN KEY (domain_id) REFERENCES Domains(id)
+)
+-- Schema for table 'Company' --
+CREATE TABLE Company (
+    id TEXT PRIMARY KEY
+)
+-- Schema for table 'Departments' --
+CREATE TABLE Departments (
+    id TEXT PRIMARY KEY,
+    manager_id INTEGER,
+    FOREIGN KEY (manager_id) REFERENCES Employees(id)
+)
+-- Schema for table 'Dependencies' --
+CREATE TABLE Dependencies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_system_id TEXT,
+    to_system_id TEXT,
+    description TEXT,
+    FOREIGN KEY (from_system_id) REFERENCES Systems(id),
+    FOREIGN KEY (to_system_id) REFERENCES Systems(id)
+)
+-- Schema for table 'Domains' --
+CREATE TABLE Domains (
+    id TEXT PRIMARY KEY,
+    description TEXT
+)
+-- Schema for table 'Employees' --
+CREATE TABLE Employees (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT,
+    department_id TEXT,
+    manager_id INTEGER,
+    FOREIGN KEY (department_id) REFERENCES Departments(id),
+    FOREIGN KEY (manager_id) REFERENCES Employees(id)
+)
+-- Schema for table 'SystemResponsibilities' --
+CREATE TABLE SystemResponsibilities (
+    system_id TEXT,
+    employee_id INTEGER,
+    responsibility_type TEXT CHECK(responsibility_type IN ('owner', 'maintainer')),
+    PRIMARY KEY (system_id, employee_id, responsibility_type),
+    FOREIGN KEY (system_id) REFERENCES Systems(id),
+    FOREIGN KEY (employee_id) REFERENCES Employees(id)
+)
+-- Schema for table 'Systems' --
+CREATE TABLE Systems (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL, -- HIDE
+    description TEXT, -- HIDE
+    kind TEXT CHECK(kind IN ('app', 'db', 'server', 'network', 'external', 'storage', 'virtualization', 'integration')) DEFAULT 'app'
+)
+-- Schema for table 'Systems_BoundedContexts' --
+CREATE TABLE Systems_BoundedContexts (
+    system_id TEXT,
+    bounded_context_id TEXT,
+    PRIMARY KEY (system_id, bounded_context_id),
+    FOREIGN KEY (system_id) REFERENCES Systems(id),
+    FOREIGN KEY (bounded_context_id) REFERENCES BoundedContexts(id)
+)
+------------------------------

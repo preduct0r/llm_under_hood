@@ -1,0 +1,124 @@
+ cd /home/den/projects/llm_under_hood ; /usr/bin/env /home/den/anaconda3/envs/llm_course/bin/python /home/den/.cursor/extensions/ms-python.debugpy-2024.6.0-linux-x64/bundled/libs/debugpy/adapter/../../debugpy/launcher 52007 -- /home/den/projects/llm_under_hood/practice/pr1/get_schema.py --db_path practice/pr1/database/org_structure_db2.sqlite 
+## Method 1: Using sqlite_schema ##
+
+### Tables:
+-- Schema for table 'BoundedContext' --
+CREATE TABLE BoundedContext (
+    id TEXT PRIMARY KEY,
+    description TEXT,
+    domain_id TEXT,
+    FOREIGN KEY (domain_id) REFERENCES Domain(id)
+)
+-- Schema for table 'BoundedContext_System' --
+CREATE TABLE BoundedContext_System (
+    bounded_context_id TEXT,
+    system_id TEXT,
+    FOREIGN KEY (bounded_context_id) REFERENCES BoundedContext(id),
+    FOREIGN KEY (system_id) REFERENCES System(id)
+)
+-- Schema for table 'Company' --
+CREATE TABLE Company (
+    id TEXT PRIMARY KEY
+)
+-- Schema for table 'Company_Department' --
+CREATE TABLE Company_Department (
+    company_id TEXT,
+    department_id TEXT,
+    FOREIGN KEY (company_id) REFERENCES Company(id),
+    FOREIGN KEY (department_id) REFERENCES Department(id)
+)
+-- Schema for table 'Company_Domain' --
+CREATE TABLE Company_Domain (
+    company_id TEXT,
+    domain_id TEXT,
+    FOREIGN KEY (company_id) REFERENCES Company(id),
+    FOREIGN KEY (domain_id) REFERENCES Domain(id)
+)
+-- Schema for table 'Company_Employee' --
+CREATE TABLE Company_Employee (
+    company_id TEXT,
+    employee_id INTEGER,
+    FOREIGN KEY (company_id) REFERENCES Company(id),
+    FOREIGN KEY (employee_id) REFERENCES Employee(id)
+)
+-- Schema for table 'Department' --
+CREATE TABLE Department (
+    id TEXT PRIMARY KEY,
+    manager_id INTEGER,
+    FOREIGN KEY (manager_id) REFERENCES Employee(id)
+)
+-- Schema for table 'Department_Employee' --
+CREATE TABLE Department_Employee (
+    department_id TEXT,
+    employee_id INTEGER,
+    FOREIGN KEY (department_id) REFERENCES Department(id),
+    FOREIGN KEY (employee_id) REFERENCES Employee(id)
+)
+-- Schema for table 'Dependency' --
+CREATE TABLE Dependency (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_system_id TEXT,
+    to_system_id TEXT,
+    description TEXT,
+    FOREIGN KEY (from_system_id) REFERENCES System(id),
+    FOREIGN KEY (to_system_id) REFERENCES System(id)
+)
+-- Schema for table 'Domain' --
+CREATE TABLE Domain (
+    id TEXT PRIMARY KEY,
+    description TEXT
+)
+-- Schema for table 'Employee' --
+CREATE TABLE Employee (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT,
+    level TEXT,
+    specialization TEXT,
+    department_id TEXT,
+    manager_id INTEGER,
+    location TEXT,
+    hire_date TEXT,
+    tenure INTEGER,
+    FOREIGN KEY (department_id) REFERENCES Department(id),
+    FOREIGN KEY (manager_id) REFERENCES Employee(id)
+)
+-- Schema for table 'System' --
+CREATE TABLE System (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    kind TEXT CHECK (kind IN ('app', 'db', 'server', 'network', 'external', 'storage', 'virtualization', 'integration')) DEFAULT 'app',
+    location TEXT,
+    installation_date TEXT,
+    decommission_date TEXT,
+    technology_stack TEXT
+)
+-- Schema for table 'SystemResponsibility' --
+CREATE TABLE SystemResponsibility (
+    system_code TEXT,
+    responsibility_type TEXT CHECK (responsibility_type IN ('owner', 'maintainer')),
+    employee_id INTEGER,
+    FOREIGN KEY (system_code) REFERENCES System(id),
+    FOREIGN KEY (employee_id) REFERENCES Employee(id),
+    PRIMARY KEY (system_code, responsibility_type, employee_id)
+)
+-- Schema for table 'System_Frameworks' --
+CREATE TABLE System_Frameworks (
+    system_id TEXT,
+    framework TEXT,
+    FOREIGN KEY (system_id) REFERENCES System(id)
+)
+-- Schema for table 'System_ProgrammingLanguages' --
+CREATE TABLE System_ProgrammingLanguages (
+    system_id TEXT,
+    programming_language TEXT,
+    FOREIGN KEY (system_id) REFERENCES System(id)
+)
+-- Schema for table 'TechnicalInfrastructure_System' --
+CREATE TABLE TechnicalInfrastructure_System (
+    technical_infrastructure_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    system_id TEXT,
+    FOREIGN KEY (system_id) REFERENCES System(id)
+)
+------------------------------
