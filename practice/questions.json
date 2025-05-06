@@ -1,0 +1,77 @@
+[
+  {
+    "question": "Which employee is responsible for maintaining the most systems?",
+    "answer": 41
+  },
+  {
+    "question": "How many systems are there that have only one owner or one maintainer?",
+    "answer": 52
+  },
+  {
+    "question": "Which systems does the busiest employee (maintains the most systems) maintain?",
+    "answer": [
+      "ERP",
+      "MLOps",
+      "ESB",
+      "AS1",
+      "AS2",
+      "AS3",
+      "AS4",
+      "AS5",
+      "AS6",
+      "AS7",
+      "AS8",
+      "NAS1",
+      "HYPERVISOR"
+    ]
+  },
+  {
+    "question": "If Elena Becker (Database Administrator) were to leave suddenly, which specific systems would she no longer be able to maintain?",
+    "answer": [
+      "ERP",
+      "EIS",
+      "EMS",
+      "DL",
+      "ETL",
+      "DB_ORACLE",
+      "DB_POSTGRES",
+      "DB_MONGO",
+      "DB_MYSQL",
+      "DB_SAP_HANA"
+    ]
+  },
+  {
+    "question": "How many other systems are directly connected to the Enterprise Service Bus (ESB)?",
+    "answer": 30
+  },
+  {
+    "question": "Which department has the highest number of employees listed as system owners or maintainers?",
+    "answer": "IT Department"
+  },
+  {
+    "question": "How many systems are maintained by employees outside of the 'IT Department'?",
+    "answer": 0
+  },
+  {
+    "question": "If Maximilian Hofer (Senior Data Scientist) left the company, which systems would lose their last owner?",
+    "answer": [
+      "IFT",
+      "HSAI",
+      "PMT",
+      "DL",
+      "ETL"
+    ]
+  },
+  {
+    "question": "How many other systems have a direct dependency on the Transportation Management System (TMS)?",
+    "answer": 6
+  },
+  {
+    "question": "How many employees are listed as both owners and maintainers of the same system?",
+    "answer": 1
+  },
+  {
+    "question": "If the Customer Relationship Management (CRM) system failed while its maintainer was on vacation, how many other systems that depend on it would be impacted directly and indirectly?",
+    "answer": 3
+  }
+]
