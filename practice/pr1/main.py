@@ -3,6 +3,7 @@ import sqlite3
 import os
 import json
 import argparse
+from copy import deepcopy
 from get_schema import get_schema_from_sqlite_schema
 
 # Конфигурация OpenAI
@@ -134,9 +135,20 @@ def main(db_path_num: int, qa_path: str):
         # Выполнение запроса
         try:
             # Use the generated SQL directly
-            answer = execute_sql(generated_sql, db_path)
+            sql_results = execute_sql(generated_sql, db_path)
             print("\nРезультаты:")
-            item["answer"] = answer
+            item["ground_truth"] = deepcopy(item["answer"]) # для проверки
+            
+            # Format the answer appropriately based on result type
+            if len(sql_results) == 1 and len(sql_results[0]) == 1:
+                # Single value result - return just the value
+                item["answer"] = sql_results[0][0]
+            elif len(sql_results) >= 1 and len(sql_results[0]) == 1:
+                # List of single values - extract into simple list
+                item["answer"] = [row[0] for row in sql_results]
+            else:
+                # More complex result structure - keep as is
+                item["answer"] = sql_results
         except sqlite3.Error as e:
             print(f"Ошибка выполнения запроса: {e}")
     json.dump(qa_data, open(f"practice/pr1/answers/{db_path_num}.json", "w"), indent=4)
