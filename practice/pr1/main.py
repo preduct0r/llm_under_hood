@@ -1,6 +1,7 @@
 import openai
 import sqlite3
 import os
+import json
 import argparse
 from get_schema import get_schema_from_sqlite_schema
 
@@ -108,39 +109,46 @@ def execute_sql(sql: str, db_path: str) -> list:
     
     return results
 
-def main(db_path: str):
+def main(db_path_num: int, qa_path: str):
     # Extract the database schema
+    db_path = f"practice/pr1/database/org_structure_db{db_path_num}.sqlite"
     schema_info = get_schema_for_db(db_path)
+
+    qa_data = json.load(open(qa_path))
     
-    # user_question = input("Введите ваш вопрос о данных: ")
-    user_question = "Which employee is responsible for maintaining the most systems?"
+    for item in qa_data:
+        # user_question = input("Введите ваш вопрос о данных: ")
+        user_question = item["question"]
+        
+        # Identify relevant table for this question
+        relevant_table = identify_relevant_tables(user_question, schema_info)
+        print(f"Релевантная таблица: {relevant_table}")
+        
+        # Get schema for only the relevant table
+        relevant_schema = get_relevant_schema(relevant_table, schema_info)
+        
+        # Генерация SQL
+        generated_sql = generate_sql(user_question, relevant_schema)
+        print(f"Сгенерированный SQL: {generated_sql}")
+        
+        # Выполнение запроса
+        try:
+            # Use the generated SQL directly
+            answer = execute_sql(generated_sql, db_path)
+            print("\nРезультаты:")
+            item["answer"] = answer
+        except sqlite3.Error as e:
+            print(f"Ошибка выполнения запроса: {e}")
+    json.dump(qa_data, open(f"practice/pr1/answers/{db_path_num}.json", "w"), indent=4)
     
-    # Identify relevant table for this question
-    relevant_table = identify_relevant_tables(user_question, schema_info)
-    print(f"Релевантная таблица: {relevant_table}")
-    
-    # Get schema for only the relevant table
-    relevant_schema = get_relevant_schema(relevant_table, schema_info)
-    
-    # Генерация SQL
-    generated_sql = generate_sql(user_question, relevant_schema)
-    print(f"Сгенерированный SQL: {generated_sql}")
-    
-    # Выполнение запроса
-    try:
-        # Use the generated SQL directly
-        data = execute_sql(generated_sql, db_path)
-        print("\nРезультаты:")
-        for row in data:
-            print(row)
-    except sqlite3.Error as e:
-        print(f"Ошибка выполнения запроса: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Выполнение SQL-запросов с использованием LLM')
-    parser.add_argument('--db-path', type=str, required=True,
+    parser.add_argument('--db-path-num', type=int, required=True,
                         help='Путь к файлу базы данных SQLite')
+    parser.add_argument('--test-qa', type=str, required=True,
+                        help='Тестовые данные')
     args = parser.parse_args()
     
-    main(args.db_path)
+    main(args.db_path_num, args.test_qa)
 
