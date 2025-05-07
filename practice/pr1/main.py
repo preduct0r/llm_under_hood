@@ -136,7 +136,7 @@ def main(db_path_num: int, qa_path: str):
     for item in qa_data:
         # user_question = input("Введите ваш вопрос о данных: ")
         user_question = item["question"]
-        
+        print(item["question"])
         # Identify relevant table for this question
         relevant_table = identify_relevant_tables(user_question, schema_info)
         print(f"Релевантная таблица: {relevant_table}")
@@ -165,8 +165,12 @@ def main(db_path_num: int, qa_path: str):
             else:
                 # More complex result structure - keep as is
                 item["answer"] = sql_results
+
+            print(item["answer"])
         except sqlite3.Error as e:
             print(f"Ошибка выполнения запроса: {e}")
+
+        print("/n==============================/n")
 
         # break
     json.dump(qa_data, open(f"practice/pr1/answers/{db_path_num}.json", "w"), indent=4)
