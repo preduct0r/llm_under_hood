@@ -5,9 +5,22 @@ import json
 import argparse
 from copy import deepcopy
 from get_schema import get_schema_from_sqlite_schema
+from langfuse import Langfuse
+from langfuse.decorators import observe
+from langfuse.openai import openai # OpenAI integration
+from dotenv import load_dotenv
 
-# Конфигурация OpenAI
-openai.api_key = os.getenv("OPENAI_API_KEY")  # Используйте свой API-ключ
+# Load environment variables from .env file
+load_dotenv()
+
+
+langfuse = Langfuse(
+  secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
+  public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
+  host=os.getenv("LANGFUSE_HOST")
+)
+openai.api_key = os.getenv("OPENAI_API_KEY")  
+
 
 def get_schema_for_db(db_path: str) -> dict:
     """Extract schema information from the database"""
@@ -23,6 +36,8 @@ def format_schema_string(schema_info: dict) -> str:
     
     return schema_str
 
+
+@observe()
 def identify_relevant_tables(question: str, schema_info: dict) -> str:
     """Identify the most relevant table to the question"""
     
@@ -65,6 +80,7 @@ def get_relevant_schema(relevant_table: str, schema_info: dict) -> str:
     
     return relevant_schema
 
+@observe()
 def generate_sql(question: str, db_schema: str) -> str:
     """Генерация SQL запроса с помощью LLM"""
     prompt = f"""
@@ -151,6 +167,8 @@ def main(db_path_num: int, qa_path: str):
                 item["answer"] = sql_results
         except sqlite3.Error as e:
             print(f"Ошибка выполнения запроса: {e}")
+
+        # break
     json.dump(qa_data, open(f"practice/pr1/answers/{db_path_num}.json", "w"), indent=4)
     
 
