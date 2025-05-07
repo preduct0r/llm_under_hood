@@ -1,0 +1,149 @@
+(llm_course) (base) den@asus:~/projects/llm_under_hood$  cd /home/den/projects/llm_under_hood ; /usr/bin/env /home/den/anaconda3/envs/llm_course/bin/python /home/den/.cursor/extensions/ms-python.debugpy-2024.6.0-linux-x64/bundled/libs/debugpy/adapter/../../debugpy/launcher 52551 -- practice/pr1/main.py --db-path-num 1 --test-qa practice/questions.json 
+Which employee is responsible for maintaining the most systems?
+Релевантная таблица: SystemResponsibilities
+Сгенерированный SQL: SELECT employee_id
+FROM SystemResponsibilities
+WHERE responsibility_type = 'maintainer'
+GROUP BY employee_id
+ORDER BY COUNT(DISTINCT system_id) DESC
+LIMIT 1;
+
+Результаты:
+41
+/n==============================/n
+How many systems are there that have only one owner or one maintainer?
+Релевантная таблица: SystemResponsibilities
+Сгенерированный SQL: SELECT COUNT(system_id)
+FROM (
+    SELECT system_id
+    FROM SystemResponsibilities
+    WHERE responsibility_type IN ('owner', 'maintainer')
+    GROUP BY system_id, responsibility_type
+    HAVING COUNT(employee_id) = 1
+) AS SingleResponsibilitySystems
+GROUP BY system_id
+HAVING COUNT(system_id) = 1;
+
+Результаты:
+[1, 1, 1]
+/n==============================/n
+Which systems does the busiest employee (maintains the most systems) maintain?
+Релевантная таблица: SystemResponsibilities
+Сгенерированный SQL: SELECT sr.system_id
+FROM SystemResponsibilities sr
+JOIN (
+    SELECT employee_id, COUNT(system_id) AS system_count
+    FROM SystemResponsibilities
+    WHERE responsibility_type = 'maintainer'
+    GROUP BY employee_id
+    ORDER BY system_count DESC
+    LIMIT 1
+) AS busiest_employee ON sr.employee_id = busiest_employee.employee_id
+WHERE sr.responsibility_type = 'maintainer';
+
+Результаты:
+['ERP', 'MLOps', 'ESB', 'AS1', 'AS2', 'AS3', 'AS4', 'AS5', 'AS6', 'AS7', 'AS8', 'NAS1', 'HYPERVISOR']
+/n==============================/n
+If Elena Becker (Database Administrator) were to leave suddenly, which specific systems would she no longer be able to maintain?
+Релевантная таблица: SystemResponsibilities
+Сгенерированный SQL: SELECT sr.system_id
+FROM SystemResponsibilities sr
+JOIN Employees e ON sr.employee_id = e.id
+WHERE e.name = 'Elena Becker' AND e.role = 'Database Administrator' AND sr.responsibility_type = 'maintainer';
+
+Результаты:
+['ERP', 'EIS', 'EMS', 'DL', 'ETL', 'DB_ORACLE', 'DB_POSTGRES', 'DB_MONGO', 'DB_MYSQL', 'DB_SAP_HANA']
+/n==============================/n
+How many other systems are directly connected to the Enterprise Service Bus (ESB)?
+Релевантная таблица: Dependencies
+Сгенерированный SQL: SELECT COUNT(DISTINCT from_system_id) + COUNT(DISTINCT to_system_id) 
+FROM Dependencies 
+WHERE from_system_id = 'ESB' OR to_system_id = 'ESB';
+
+Результаты:
+31
+/n==============================/n
+Which department has the highest number of employees listed as system owners or maintainers?
+Релевантная таблица: Employees
+Сгенерированный SQL: SELECT department_id
+FROM Employees
+WHERE role IN ('system owner', 'maintainer')
+GROUP BY department_id
+ORDER BY COUNT(*) DESC
+LIMIT 1;
+
+Результаты:
+[]
+/n==============================/n
+How many systems are maintained by employees outside of the 'IT Department'?
+Релевантная таблица: Systems
+Сгенерированный SQL: SELECT COUNT(*)
+FROM Systems
+WHERE id IN (
+    SELECT system_id
+    FROM Maintenance
+    WHERE employee_id IN (
+        SELECT id
+        FROM Employees
+        WHERE department != 'IT Department'
+    )
+);
+Ошибка выполнения запроса: no such table: Maintenance
+/n==============================/n
+If Maximilian Hofer (Senior Data Scientist) left the company, which systems would lose their last owner?
+Релевантная таблица: SystemResponsibilities
+Сгенерированный SQL: SELECT sr.system_id
+FROM SystemResponsibilities sr
+JOIN Employees e ON sr.employee_id = e.id
+WHERE e.name = 'Maximilian Hofer' AND e.position = 'Senior Data Scientist' AND sr.responsibility_type = 'owner'
+AND NOT EXISTS (
+    SELECT 1
+    FROM SystemResponsibilities sr2
+    WHERE sr2.system_id = sr.system_id
+    AND sr2.responsibility_type = 'owner'
+    AND sr2.employee_id <> e.id
+);
+Ошибка выполнения запроса: no such column: e.position
+/n==============================/n
+How many other systems have a direct dependency on the Transportation Management System (TMS)?
+Релевантная таблица: Dependencies
+Сгенерированный SQL: SELECT COUNT(*) 
+FROM Dependencies 
+WHERE to_system_id = (
+    SELECT id 
+    FROM Systems 
+    WHERE name = 'Transportation Management System (TMS)'
+);
+
+Результаты:
+0
+/n==============================/n
+How many employees are listed as both owners and maintainers of the same system?
+Релевантная таблица: SystemResponsibilities
+Сгенерированный SQL: SELECT COUNT(DISTINCT sr1.employee_id)
+FROM SystemResponsibilities sr1
+JOIN SystemResponsibilities sr2 ON sr1.system_id = sr2.system_id AND sr1.employee_id = sr2.employee_id
+WHERE sr1.responsibility_type = 'owner' AND sr2.responsibility_type = 'maintainer';
+
+Результаты:
+1
+/n==============================/n
+If the Customer Relationship Management (CRM) system failed while its maintainer was on vacation, how many other systems that depend on it would be impacted directly and indirectly?
+Релевантная таблица: Dependencies
+Сгенерированный SQL: WITH RECURSIVE ImpactedSystems AS (
+    SELECT to_system_id
+    FROM Dependencies
+    WHERE from_system_id = (SELECT id FROM Systems WHERE name = 'Customer Relationship Management')
+
+    UNION
+
+    SELECT d.to_system_id
+    FROM Dependencies d
+    INNER JOIN ImpactedSystems isys ON d.from_system_id = isys.to_system_id
+)
+SELECT COUNT(DISTINCT to_system_id) AS impacted_systems_count
+FROM ImpactedSystems;
+
+Результаты:
+11
+/n==============================/n
