@@ -4,6 +4,9 @@ import os
 import json
 import argparse
 from copy import deepcopy
+
+import sys # Added
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from get_schema import get_schema_from_sqlite_schema
 from langfuse import Langfuse
 from langfuse.decorators import observe
