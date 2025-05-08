@@ -1,4 +1,4 @@
-You are an expert in SQLite, Python and charting. You work in a Spanish company producing equipment for working with steel.
+You are an expert in SQLite, Python and charting. You work in a company focused on logistics and transportation management.
 
 Given a user request, respond with a python code to carry out the task.
 
@@ -11,7 +11,7 @@ import sqlite3
 
 
 def query(q: str):
-    with sqlite3.connect('dataflex/dataflex.db') as conn:
+    with sqlite3.connect('practice/text-to-sql/database/org_structure_db2.sqlite') as conn:
         df = pd.read_sql_query(q, conn)
 
         for col in df.columns:
@@ -37,3 +37,107 @@ And a few nuances:
 (3) If I talk about leads - we are looking for the business registry data (enrich table) of companies that ARE NOT existing customers
 
 # Database Schema
+CREATE TABLE System (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    kind TEXT CHECK (kind IN ('app', 'db', 'server', 'network', 'external', 'storage', 'virtualization', 'integration')) DEFAULT 'app',
+    location TEXT,
+    installation_date TEXT,
+    decommission_date TEXT,
+    technology_stack TEXT
+);
+CREATE TABLE System_ProgrammingLanguages (
+    system_id TEXT,
+    programming_language TEXT,
+    FOREIGN KEY (system_id) REFERENCES System(id)
+);
+CREATE TABLE System_Frameworks (
+    system_id TEXT,
+    framework TEXT,
+    FOREIGN KEY (system_id) REFERENCES System(id)
+);
+CREATE TABLE Dependency (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_system_id TEXT,
+    to_system_id TEXT,
+    description TEXT,
+    FOREIGN KEY (from_system_id) REFERENCES System(id),
+    FOREIGN KEY (to_system_id) REFERENCES System(id)
+);
+CREATE TABLE sqlite_sequence(name,seq);
+CREATE TABLE Domain (
+    id TEXT PRIMARY KEY,
+    description TEXT
+);
+CREATE TABLE BoundedContext (
+    id TEXT PRIMARY KEY,
+    description TEXT,
+    domain_id TEXT,
+    FOREIGN KEY (domain_id) REFERENCES Domain(id)
+);
+CREATE TABLE BoundedContext_System (
+    bounded_context_id TEXT,
+    system_id TEXT,
+    FOREIGN KEY (bounded_context_id) REFERENCES BoundedContext(id),
+    FOREIGN KEY (system_id) REFERENCES System(id)
+);
+CREATE TABLE Department (
+    id TEXT PRIMARY KEY,
+    manager_id INTEGER,
+    FOREIGN KEY (manager_id) REFERENCES Employee(id)
+);
+CREATE TABLE Employee (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT,
+    level TEXT,
+    specialization TEXT,
+    department_id TEXT,
+    manager_id INTEGER,
+    location TEXT,
+    hire_date TEXT,
+    tenure INTEGER,
+    FOREIGN KEY (department_id) REFERENCES Department(id),
+    FOREIGN KEY (manager_id) REFERENCES Employee(id)
+);
+CREATE TABLE Department_Employee (
+    department_id TEXT,
+    employee_id INTEGER,
+    FOREIGN KEY (department_id) REFERENCES Department(id),
+    FOREIGN KEY (employee_id) REFERENCES Employee(id)
+);
+CREATE TABLE TechnicalInfrastructure_System (
+    technical_infrastructure_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    system_id TEXT,
+    FOREIGN KEY (system_id) REFERENCES System(id)
+);
+CREATE TABLE SystemResponsibility (
+    system_code TEXT,
+    responsibility_type TEXT CHECK (responsibility_type IN ('owner', 'maintainer')),
+    employee_id INTEGER,
+    FOREIGN KEY (system_code) REFERENCES System(id),
+    FOREIGN KEY (employee_id) REFERENCES Employee(id),
+    PRIMARY KEY (system_code, responsibility_type, employee_id)
+);
+CREATE TABLE Company (
+    id TEXT PRIMARY KEY
+);
+CREATE TABLE Company_Domain (
+    company_id TEXT,
+    domain_id TEXT,
+    FOREIGN KEY (company_id) REFERENCES Company(id),
+    FOREIGN KEY (domain_id) REFERENCES Domain(id)
+);
+CREATE TABLE Company_Department (
+    company_id TEXT,
+    department_id TEXT,
+    FOREIGN KEY (company_id) REFERENCES Company(id),
+    FOREIGN KEY (department_id) REFERENCES Department(id)
+);
+CREATE TABLE Company_Employee (
+    company_id TEXT,
+    employee_id INTEGER,
+    FOREIGN KEY (company_id) REFERENCES Company(id),
+    FOREIGN KEY (employee_id) REFERENCES Employee(id)
+);
