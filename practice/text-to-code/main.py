@@ -4,6 +4,7 @@ import os
 import json
 import argparse
 from copy import deepcopy
+import datetime  # Added for timestamp
 
 import sys # Added
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -84,17 +85,22 @@ def get_relevant_schema(relevant_table: str, schema_info: dict) -> str:
     return relevant_schema
 
 @observe()
-def generate_sql(question: str, db_schema: str) -> str:
-    """Генерация SQL запроса с помощью LLM"""
-    prompt = f"""
-    Given the following SQL database structure:
-    {db_schema}
+def generate_python_code(question: str, db_schema: str) -> str:
+    """Generate Python code using LLM based on baseline prompt"""
     
-    Convert this natural language question into a SQL query:
-    {question}
+    # Load the baseline prompt template
+    with open("practice/text-to-code/prompt.txt", "r") as file:
+        baseline_prompt = file.read()
     
-    Return ONLY the SQL query without any additional explanation.
-    """
+    prompt = f"""{baseline_prompt}
+
+Database schema:
+{db_schema}
+
+User request: {question}
+
+Respond with only the Python code, without any additional explanations.
+"""
     
     response = openai.chat.completions.create(
         model="gpt-4o",
@@ -102,90 +108,68 @@ def generate_sql(question: str, db_schema: str) -> str:
         stream=False,
     )
     
-    sql = response.choices[0].message.content.strip()
+    python_code = response.choices[0].message.content.strip()
     
     # Remove markdown code block if present
-    if sql.startswith("```") and sql.endswith("```"):
+    if python_code.startswith("```") and python_code.endswith("```"):
         # Remove the first line and last line
-        sql_lines = sql.split("\n")
-        sql = "\n".join(sql_lines[1:-1])
-    elif sql.startswith("```"):
+        code_lines = python_code.split("\n")
+        if code_lines[0].startswith("```python"):
+            python_code = "\n".join(code_lines[1:-1])
+        else:
+            python_code = "\n".join(code_lines[1:-1])
+    elif python_code.startswith("```"):
         # Just remove the first line if no closing backticks
-        sql_lines = sql.split("\n")
-        sql = "\n".join(sql_lines[1:])
+        code_lines = python_code.split("\n")
+        if code_lines[0].startswith("```python"):
+            python_code = "\n".join(code_lines[1:])
+        else:
+            python_code = "\n".join(code_lines[1:])
     
-    return sql
+    return python_code
 
-def execute_sql(sql: str, db_path: str) -> list:
-    """Выполнение SQL запроса в SQLite базе"""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute(sql)
-        results = cursor.fetchall()
-    finally:
-        conn.close()
-    
-    return results
-
-def main(db_path_num: int, qa_path: str):
+def main(db_path_num: int, question: str, output_folder: str = None):
     # Extract the database schema
     db_path = f"practice/pr1/database/org_structure_db{db_path_num}.sqlite"
     schema_info = get_schema_for_db(db_path)
 
-    qa_data = json.load(open(qa_path))
+    print(f"Question: {question}")
     
-    for item in qa_data:
-        # user_question = input("Введите ваш вопрос о данных: ")
-        user_question = item["question"]
-        print(item["question"])
-        # Identify relevant table for this question
-        relevant_table = identify_relevant_tables(user_question, schema_info)
-        print(f"Релевантная таблица: {relevant_table}")
-        
-        # Get schema for only the relevant table
-        relevant_schema = get_relevant_schema(relevant_table, schema_info)
-        
-        # Генерация SQL
-        generated_sql = generate_sql(user_question, relevant_schema)
-        print(f"Сгенерированный SQL: {generated_sql}")
-        
-        # Выполнение запроса
-        try:
-            # Use the generated SQL directly
-            sql_results = execute_sql(generated_sql, db_path)
-            print("\nРезультаты:")
-            item["ground_truth"] = deepcopy(item["answer"]) # для проверки
-            
-            # Format the answer appropriately based on result type
-            if len(sql_results) == 1 and len(sql_results[0]) == 1:
-                # Single value result - return just the value
-                item["answer"] = sql_results[0][0]
-            elif len(sql_results) >= 1 and len(sql_results[0]) == 1:
-                # List of single values - extract into simple list
-                item["answer"] = [row[0] for row in sql_results]
-            else:
-                # More complex result structure - keep as is
-                item["answer"] = sql_results
-
-            print(item["answer"])
-        except sqlite3.Error as e:
-            print(f"Ошибка выполнения запроса: {e}")
-
-        print("/n==============================/n")
-
-        # break
-    json.dump(qa_data, open(f"practice/pr1/answers/{db_path_num}.json", "w"), indent=4)
+    # Identify relevant table for this question
+    relevant_table = identify_relevant_tables(question, schema_info)
+    print(f"Relevant table: {relevant_table}")
     
+    # Get schema for only the relevant table
+    relevant_schema = get_relevant_schema(relevant_table, schema_info)
+    
+    # Generate Python code
+    generated_code = generate_python_code(question, relevant_schema)
+    print(f"Generated Python code:\n{generated_code}")
+    
+    # Save the results if output folder is specified
+    if output_folder:
+        # Create the output directory if it doesn't exist
+        os.makedirs(output_folder, exist_ok=True)
+        
+        # Create a filename based on the current timestamp
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = os.path.join(output_folder, f"generated_code_{timestamp}.py")
+        
+        with open(output_file, "w") as f:
+            f.write(generated_code)
+        print(f"Code saved to {output_file}")
+    
+    return generated_code
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Выполнение SQL-запросов с использованием LLM')
+    parser = argparse.ArgumentParser(description='Generate Python code using LLM')
     parser.add_argument('--db-path-num', type=int, required=True,
-                        help='Путь к файлу базы данных SQLite')
-    parser.add_argument('--test-qa', type=str, required=True,
-                        help='Тестовые данные')
+                        help='Database number to use')
+    parser.add_argument('--question', type=str, required=True,
+                        help='Natural language question to generate code for')
+    parser.add_argument('--output-folder', type=str, 
+                        help='Path to save the generated code (optional)')
     args = parser.parse_args()
     
-    main(args.db_path_num, args.test_qa)
+    main(args.db_path_num, args.question, args.output_folder)
 
