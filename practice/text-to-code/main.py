@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from get_schema import get_schema_from_sqlite_schema
 from langfuse import Langfuse
 from langfuse.decorators import observe
-from langfuse.openai import openai # OpenAI integration
+# from langfuse.openai import openai # OpenAI integration
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -41,7 +41,7 @@ def format_schema_string(schema_info: dict) -> str:
     return schema_str
 
 
-@observe()
+# @observe()
 def identify_relevant_tables(question: str, schema_info: dict) -> str:
     """Identify the most relevant table to the question"""
     
@@ -84,7 +84,7 @@ def get_relevant_schema(relevant_table: str, schema_info: dict) -> str:
     
     return relevant_schema
 
-@observe()
+# @observe()
 def generate_python_code(question: str, db_schema: str) -> str:
     """Generate Python code using LLM based on baseline prompt"""
     
@@ -128,7 +128,28 @@ Respond with only the Python code, without any additional explanations.
     
     return python_code
 
-def main(db_path_num: int, question: str, output_folder: str = None):
+# @observe()
+def fix_code_with_langgraph(file_path: str, max_iterations: int = 3) -> bool:
+    """Fix the generated code using the code_fixer LangGraph workflow"""
+    from langgraph.graph import StateGraph
+    from code_fixer import build_graph
+
+    # Build the graph with tracing enabled and pass max_iterations
+    graph = build_graph(max_iterations=max_iterations)
+    
+    # Run the workflow with the file path
+    result = graph.invoke({
+        "message": f"Please analyze the {file_path} file",
+        "iterations": 1,  # Starting iterations
+        "error": False,
+        "error_message": "",
+        "file_path": file_path  # Explicitly set the file_path in the initial state
+    })
+    
+    # Check if the code was fixed successfully
+    return result.get("error") == "False"
+
+def main(db_path_num: int, question: str, output_folder: str = None, fix_errors: bool = False):
     # Extract the database schema
     db_path = f"practice/pr1/database/org_structure_db{db_path_num}.sqlite"
     schema_info = get_schema_for_db(db_path)
@@ -153,11 +174,20 @@ def main(db_path_num: int, question: str, output_folder: str = None):
         
         # Create a filename based on the current timestamp
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = os.path.join(output_folder, f"generated_code_{timestamp}.py")
+        output_file = os.path.join(output_folder, f"generated_code_{timestamp}.py") 
         
         with open(output_file, "w") as f:
             f.write(generated_code)
         print(f"Code saved to {output_file}")
+        
+        # Fix code if requested
+        if fix_errors:
+            print("Attempting to fix any errors in the generated code...")
+            success = fix_code_with_langgraph(output_file)
+            if success:
+                print(f"Code successfully fixed and saved to {output_file}")
+            else:
+                print(f"Unable to fully fix code after multiple attempts. Check {output_file} for the latest version.")
     
     return generated_code
 
@@ -169,7 +199,9 @@ if __name__ == "__main__":
                         help='Natural language question to generate code for')
     parser.add_argument('--output-folder', type=str, 
                         help='Path to save the generated code (optional)')
+    parser.add_argument('--fix-errors', action='store_true',
+                        help='Use code_fixer to iteratively fix errors in the generated code')
     args = parser.parse_args()
     
-    main(args.db_path_num, args.question, args.output_folder)
+    main(args.db_path_num, args.question, args.output_folder, args.fix_errors)
 
