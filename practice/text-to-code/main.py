@@ -129,7 +129,7 @@ Respond with only the Python code, without any additional explanations.
     return python_code
 
 # @observe()
-def fix_code_with_langgraph(file_path: str, max_iterations: int = 3) -> bool:
+def fix_code_with_langgraph(file_path: str, max_iterations: int = 5) -> bool:
     """Fix the generated code using the code_fixer LangGraph workflow"""
     from langgraph.graph import StateGraph
     from code_fixer import build_graph
@@ -138,16 +138,25 @@ def fix_code_with_langgraph(file_path: str, max_iterations: int = 3) -> bool:
     graph = build_graph(max_iterations=max_iterations)
     
     # Run the workflow with the file path
-    result = graph.invoke({
-        "message": f"Please analyze the {file_path} file",
-        "iterations": 1,  # Starting iterations
-        "error": False,
-        "error_message": "",
-        "file_path": file_path  # Explicitly set the file_path in the initial state
-    })
-    
-    # Check if the code was fixed successfully
-    return result.get("error") == "False"
+    try:
+        result = graph.invoke({
+            "message": f"Please analyze the {file_path} file",
+            "iterations": 1,  # Starting iterations
+            "error": "False",  # Initialize as string to match code_fixer's expectations
+            "error_message": "",
+            "file_path": file_path,  # Explicitly set the file_path in the initial state
+            "code": ""  # Add the missing 'code' field required by AgentState
+        })
+        
+        # Check if the code was fixed successfully
+        error_status = result.get("error")
+        if error_status is None:
+            print(f"Warning: 'error' field missing from result: {result}")
+            return False
+        return error_status == "False"
+    except Exception as e:
+        print(f"Error during code fixing: {str(e)}")
+        return False
 
 def main(db_path_num: int, question: str, output_folder: str = None, fix_errors: bool = False):
     # Extract the database schema
